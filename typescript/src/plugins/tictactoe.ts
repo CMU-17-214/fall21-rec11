@@ -1,7 +1,7 @@
 import { GamePlugin } from "../core/gameplugin"
 
 
-// the basic game from rec07:
+// change something for rec11
 
 enum Player {
     PlayerX = 0,
