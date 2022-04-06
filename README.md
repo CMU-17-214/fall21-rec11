@@ -2,4 +2,5 @@
 **Fork** this repository to use for practicing Github flow.
 
 # Attendance
-[put your andrewID here]
+new branch: exercise for xinmanz
+dchwang
