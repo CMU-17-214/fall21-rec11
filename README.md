@@ -2,5 +2,4 @@
 **Fork** this repository to use for practicing Github flow.
 
 # Attendance
-id:: haoyang2
-[put your andrewID here]
+id: haoyang2 id: chenlaiw
