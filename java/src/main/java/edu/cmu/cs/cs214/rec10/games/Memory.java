@@ -1,144 +1,157 @@
-package edu.cmu.cs.cs214.rec10.games;
+package edu.cmu.cs.cs214.rec10.plugin;
 
 import java.util.*;
 
+import edu.cmu.cs.cs214.rec10.framework.core.GameFramework;
+import edu.cmu.cs.cs214.rec10.framework.core.GamePlugin;
+import edu.cmu.cs.cs214.rec10.games.Memory;
+
 /**
- * An instance of this class represents a memory game, where multiple players attempt to match items
- * on a game board.  On a player's turn, the player selects two items from the game board; if they match,
- * the player gets a point and continues their turn.  If they don't match, play advances to the next
- * player's turn.
- *
- * The implementation of this game allows the board items to be an arbitrary Java object, specified by
- * the type parameter {@code T}.
- *
- * This class is not thread-safe.
- *
- * @param <T> The type of object on the memory game board; this can be any Java object
+ * An example Memory game plug-in.
  */
-public final class Memory<T> {
-    private final List<T> board;
-    private final int numberOfPlayers;
-    private final int[] scores;
-    private int currentPlayer;
+public class MemoryPlugin implements GamePlugin<Integer> {
+    private static final int WIDTH = 4;
+    private static final int HEIGHT = 4;
 
-    /**
-     * Constructs a new memory game with the given number of players and list of board items.  The game board
-     * will consist of two copies of each item in the given list, accessed with 0-indexed positions.  A typical
-     * client will construct a new game and then call {@code selectMatch} repeatedly until the game is over.
-     *
-     * @throws IllegalArgumentException if numberOfPlayers < 1.
-     * @throws NullPointerException if the given list of board items is null.
-     */
-    public Memory(int numberOfPlayers, List<T> items) {
-        if (numberOfPlayers < 1) {
-            throw new IllegalArgumentException(String.format("Number of players must be positive: %d", numberOfPlayers));
-        }
-        Objects.requireNonNull(items);
+    private static final List<String> WORDS =
+            List.of("Apple", "Boat", "Car", "Dog", "Eagle", "Fish", "Giraffe", "Helicopter");
 
-        int size = items.size();
-        this.board = new ArrayList<>(items);
-        this.board.addAll(items);
-        Collections.shuffle(board);
-        this.numberOfPlayers = numberOfPlayers;
-        this.scores = new int[numberOfPlayers];
-        currentPlayer = 0;
+    private static final String GAME_NAME = "Memory";
+    private static final String UNKNOWN_SQUARE_STRING = "?";
+    private static final String BLANK_SQUARE_STRING = "";
+    private static final String SELECT_FIRST_CARD_MSG = "Select first card.";
+    private static final String SELECT_SECOND_CARD_MSG = "Select second card.";
+    private static final String MATCH_FOUND_MSG = "You found a match!  Select first card.";
+    private static final String NOT_A_MATCH_MSG = "That was not a match.  Select first card.";
+    private static final String PLAYER_WON_MSG = "Player %d won!";
+    private static final String PLAYERS_TIED_MSG = "Players %s tied.";
+
+    private GameFramework framework;
+    private Memory<String> game;
+    private int firstIndexSelected;
+    private int secondIndexSelected;
+    private int numberOfCardsSelected;
+    private boolean matchFound;
+
+    @Override
+    public String getGameName() {
+        return GAME_NAME;
     }
 
-    /**
-     * Constructs a new memory game with two players and the given list of board items.
-     *
-     * @throws NullPointerException if the given list of board items is null.
-     * */
-    public Memory(List<T> items) {
-        this(2, items);
+    @Override
+    public int getGridWidth() {
+        return WIDTH;
     }
 
-    /** Returns the number of players in the game. */
-    public int numberOfPlayers() { return numberOfPlayers; }
-
-    /** Returns the 0-indexed number of the player whose turn it is to play. */
-    public int currentPlayer() { return currentPlayer; }
-
-    /**
-     * Returns the item at the given position, or null if the item at that position has already been matched.
-     *
-     * @throws IndexOutOfBoundsException if index < 0 or index >= the initial board size.
-     */
-
-    public T itemAt(int index) { return board.get(index); }
-
-    /**
-     * Returns true if the board has an item at the given position, and false otherwise.
-     *
-     * @throws IndexOutOfBoundsException if index < 0 or index >= the initial board size.
-     */
-    public boolean hasItemAt(int index) { return itemAt(index) != null; }
-
-    /**
-     * Returns the current score for a given player number.
-     *
-     * @throws IndexOutOfBoundsException if playerNumber < 0 or >= numberOfPlayers()
-     */
-    public int scoreForPlayer(int playerNumber) {
-        return scores[playerNumber];
+    @Override
+    public int getGridHeight() {
+        return HEIGHT;
     }
 
-    /**
-     * Returns true if the game is over, and false otherwise.  The game is over if all items have been matched
-     * from the board.
-     */
-    public boolean isOver() {
-        return board.stream().allMatch(Objects::isNull);
+    @Override
+    public void onRegister(GameFramework f) {
+        framework = f;
     }
 
-    /**
-     * Returns the current leaders of the game, as a list of their player numbers.  If the game is over, the
-     * returned leaders are the game winners (possibly a tie).
-     */
-    public List<Integer> leaders() {
-        int maxScore = Arrays.stream(scores).max().getAsInt();
-        List<Integer> result = new ArrayList<>();
-        for (int i = 0; i < numberOfPlayers; i++) {
-            if (scores[i] == maxScore) {
-                result.add(i);
+    @Override
+    public void onNewGame() {
+        game = new Memory<>(2, WORDS);
+        for (int i = 0; i < HEIGHT; i++) {
+            for (int j = 0; j < WIDTH; j++) {
+                framework.setSquare(i, j, UNKNOWN_SQUARE_STRING);
             }
         }
-        return result;
+        numberOfCardsSelected = 0;
+        firstIndexSelected = -1; // Negative values prevent processing of "previous" selections on first turn
+        secondIndexSelected = -1;
+        framework.setFooterText(SELECT_FIRST_CARD_MSG);
     }
 
-    /**
-     * Implements a move in a memory game, with the current player selecting two positions ({@code first} and
-     * {@code second}) on the board as a proposed match.
-     *
-     * If the selected items are a match, removes the items from the board, increments the current player's score,
-     * and the current player continues their turn.  If the selected items are not a match, simply advances to the
-     * next player's turn.
-     *
-     * @param first The 0-indexed position of the first item selected on the board
-     * @param second The 0-indexed position of the second item selected on the board
-     * @return true if the selected positions are a match, and false otherwise
-     */
-    public boolean selectMatch(int first, int second) {
-        T firstItem = validateItemAt(first);
-        T secondItem = validateItemAt(second);
-        if (!firstItem.equals(secondItem)) { // Player selected mis-matched items; advance to next player
-            currentPlayer = (currentPlayer + 1) % numberOfPlayers;
-            return false;
+    @Override
+    public void onNewMove() {
+        numberOfCardsSelected = 0;
+
+    }
+
+    private int boardPositionFor(int x, int y) {
+        return (y * WIDTH) + x;
+    }
+
+    @Override
+    public boolean isMoveValid(int x, int y) {
+        if (numberOfCardsSelected == 1 && boardPositionFor(x, y) == firstIndexSelected) {
+            return false; // Prevents re-selection of first card already selected
+        }
+        return game.hasItemAt(boardPositionFor(x, y));
+    }
+
+    @Override
+    public boolean isMoveOver() {
+        return numberOfCardsSelected > 1;
+    }
+
+    @Override
+    public void onMovePlayed(int x, int y) {
+        if (numberOfCardsSelected == 0) {
+            if (firstIndexSelected >= 0 && secondIndexSelected >= 0) { // Avoids processing cards "selected" before first turn
+                framework.setSquare(firstIndexSelected % HEIGHT, firstIndexSelected / HEIGHT,
+                        matchFound ? BLANK_SQUARE_STRING : UNKNOWN_SQUARE_STRING);
+                framework.setSquare(secondIndexSelected % HEIGHT, secondIndexSelected / HEIGHT,
+                        matchFound ? BLANK_SQUARE_STRING : UNKNOWN_SQUARE_STRING);
+            }
+
+            firstIndexSelected = boardPositionFor(x, y);
+            numberOfCardsSelected++;
+            framework.setSquare(x, y, game.itemAt(firstIndexSelected));
+            framework.setFooterText(SELECT_SECOND_CARD_MSG);
+            return;
         }
 
-        board.set(first, null);   // Player selected matched items; remove items from board,
-        board.set(second, null);  // increment score, and same player continues their turn
-        scores[currentPlayer]++;
-        return true;
-    }
-
-    private T validateItemAt(int index) {
-        T result = itemAt(index);
-        if (result == null) {
-            throw new IllegalArgumentException(String.format("Player selected empty position: %d", index));
+        assert numberOfCardsSelected == 1;
+        numberOfCardsSelected++;
+        secondIndexSelected = boardPositionFor(x, y);
+        framework.setSquare(x, y, game.itemAt(secondIndexSelected));
+        matchFound = game.selectMatch(firstIndexSelected, secondIndexSelected);
+        framework.setFooterText(matchFound ? MATCH_FOUND_MSG : NOT_A_MATCH_MSG);
+        if (matchFound) {
+            numberOfCardsSelected = 0;
         }
-        return result;
     }
 
+    @Override
+    public boolean isGameOver() {
+        return game.isOver();
+    }
 
+    @Override
+    public String getGameOverMessage() {
+        List<Integer> winners = game.leaders();
+        if (winners.size() == 1)
+            return String.format(PLAYER_WON_MSG, winners.get(0) + 1);
+
+        return String.format(PLAYERS_TIED_MSG, tiedString(winners));
+    }
+
+    private String tiedString(List<Integer> winners) {
+        if (winners.size() == 2) {
+            return String.format("%d and %d", winners.get(0) + 1, winners.get(1) + 1);
+        }
+        StringBuilder result = new StringBuilder();
+        int lastPosition = winners.size() - 1;
+        for (int i = 0; i < lastPosition; i++) {
+            result.append(String.format("%d, ", winners.get(i) + 1));
+        }
+        result.append("and " + winners.get(lastPosition) + 1);
+        return result.toString();
+    }
+
+    @Override
+    public void onGameClosed() {
+    }
+
+    @Override
+    public Integer currentPlayer() {
+        return Integer.valueOf(game.currentPlayer() + 1);
+    }
 }
+
