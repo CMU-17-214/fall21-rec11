@@ -2,8 +2,7 @@
 **Fork** this repository to use for practicing Github flow.
 
 # Attendance
-emaana
-Kuanyul
+nobody
 
 
 This is Kuan editing.
